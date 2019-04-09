@@ -43,6 +43,10 @@ function EventController() {
     const MPD_CALLBACK_SCHEME = 'urn:mpeg:dash:event:callback:2015';
     const MPD_CALLBACK_VALUE = 1;
 
+    const MPD_TRIGGER_SCHEME = 'urn:mpeg:dash:event:trigger:2019';
+    const MPD_TRIGGER_VALUE = 1;
+
+
     const context = this.context;
     const eventBus = EventBus(context).getInstance();
 
@@ -168,9 +172,11 @@ function EventController() {
                 let eventId = eventIds[i];
                 let curr = activeEvents[eventId];
                 if (curr !== null && (curr.duration + curr.presentationTime) / curr.eventStream.timescale < currentVideoTime) {
-                    logger.debug('Remove Event ' + eventId + ' at time ' + currentVideoTime);
-                    curr = null;
-                    delete activeEvents[eventId];
+                    if (!(curr.eventStream.schemeIdUri == MPD_TRIGGER_SCHEME && curr.eventStream.value == MPD_TRIGGER_VALUE)) {
+                        logger.debug('Remove Event ' + eventId + ' at time ' + currentVideoTime);
+                        curr = null;
+                        delete activeEvents[eventId];
+                    }
                 }
             }
         }
@@ -225,12 +231,16 @@ function EventController() {
                             if (curr.duration !== 0 || curr.presentationTimeDelta !== 0) { //If both are set to zero, it indicates the media is over at this point. Don't reload the manifest.
                                 refreshManifest();
                             }
+                            delete events[eventId];
                         } else if (curr.eventStream.schemeIdUri == MPD_CALLBACK_SCHEME && curr.eventStream.value == MPD_CALLBACK_VALUE) {
                             sendCallbackRequest(curr.messageData);
+                            delete events[eventId];
+                        } else if (curr.eventStream.schemeIdUri == MPD_TRIGGER_SCHEME && curr.eventStream.value == MPD_TRIGGER_VALUE) {
+                            eventBus.trigger(curr.eventStream.schemeIdUri, {event: curr});
                         } else {
                             eventBus.trigger(curr.eventStream.schemeIdUri, {event: curr});
+                            delete events[eventId];
                         }
-                        delete events[eventId];
                     }
                 }
             }
